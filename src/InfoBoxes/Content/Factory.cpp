@@ -1082,7 +1082,15 @@ static constexpr MetaData meta_data[] = {
     N_("The currently standby Radio Frequency"),
     IBFHelper<InfoBoxContentStandbyRadioFrequency>::Create,
   },
+  
 
+    // e_HDG_MAG
+  {
+    N_("Magnetic Heading"),
+    N_("HDG"),
+    N_("The measured heading of a connected attitude heading reference system."),
+    UpdateInfoBoxHeading,
+  }
 };
 
 static_assert(ARRAY_SIZE(meta_data) == NUM_TYPES,

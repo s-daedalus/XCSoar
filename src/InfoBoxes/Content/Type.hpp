@@ -168,6 +168,8 @@ namespace InfoBoxFactory
 
     e_StandbyRadio, /* Standby Radio Frequency */
 
+    e_HDG_MAG, /* magnetic heading in attitude info. */
+
     e_NUM_TYPES /* Last item */
   };
 

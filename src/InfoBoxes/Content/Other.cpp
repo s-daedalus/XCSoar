@@ -201,3 +201,14 @@ UpdateInfoBoxNbrSat(InfoBoxData &data)
         data.SetValueInvalid();
     }
 }
+
+
+void
+UpdateInfoBoxHeading(InfoBoxData &data){
+  // Set Value
+  if (CommonInterface::Basic().attitude.heading_available){
+    data.SetValue(_T("%3.0f°"), CommonInterface::Basic().attitude.heading.AsBearing().AbsoluteDegrees());
+  }else{
+    data.SetInvalid();
+  }
+}

@@ -39,6 +39,9 @@ void
 UpdateInfoBoxExperimental2(InfoBoxData &data);
 
 void
+UpdateInfoBoxHeading(InfoBoxData &data);
+
+void
 UpdateInfoBoxCPULoad(InfoBoxData &data);
 
 void
