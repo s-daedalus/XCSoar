@@ -37,10 +37,11 @@ public:
   ArduinoINSDevice(Port &_port):port(_port) {}
 
   /* virtual methods from class Device */
-  bool ParseNMEA(const char *line, NMEAInfo &info) override;
+  bool DataReceived(const void *data, size_t length, struct NMEAInfo &info) override;
   void OnCalculatedUpdate(const MoreData &basic,
                   const DerivedInfo &calculated) override;
 };
+
 
 void
 ArduinoINSDevice::OnCalculatedUpdate(const MoreData &basic, 
@@ -58,24 +59,35 @@ ArduinoINSDevice::OnCalculatedUpdate(const MoreData &basic,
 }
 
 bool
-ArduinoINSDevice::ParseNMEA(const char *_line, NMEAInfo &info)
+ArduinoINSDevice::DataReceived(const void *data, size_t length,
+                            struct NMEAInfo &info)
 {
-  if(_line[0] == '$' && _line[1] == 'A'){
-    float roll = (int)(_line[2] | (_line[3] << 8)) / 10;
-    float pitch = (int)(_line[4] | (_line[5] << 8)) / 10;
-    float yaw = (int)(_line[6] | (_line[7] << 8)) / 10;
-    
-    info.attitude.bank_angle_available.Update(info.clock);
-    info.attitude.bank_angle = Angle::Degrees(roll / 10.);
-
-    info.attitude.pitch_angle_available.Update(info.clock);
-    info.attitude.pitch_angle = Angle::Degrees(pitch / 10.);
-
-    info.attitude.heading_available.Update(info.clock);
-    info.attitude.heading = Angle::Degrees(yaw / 10.);
+  const char* _line = (const char*)data;
+  if(length != 8){
+    LogFormat("length: %i", (int)length);
     return true;
   }
-  return false;
+  if(_line[0] == '$' && _line[1] == 'A'){
+    int16_t i_roll, i_pitch, i_yaw;
+    *((char*)&i_roll) = _line[2];
+    *((char*)&i_roll + 1) = _line[3];
+    *((char*)&i_pitch) = _line[4];
+    *((char*)&i_pitch + 1) = _line[5];
+    *((char*)&i_yaw) = _line[6];
+    *((char*)&i_yaw + 1) = _line[7];
+    LogFormat("R: %i, P: %i, Y: %i", i_roll, i_pitch, i_yaw);
+    info.attitude.bank_angle_available.Update(info.clock);
+    info.attitude.bank_angle = Angle::Degrees(0.1f * i_roll);
+
+    info.attitude.pitch_angle_available.Update(info.clock);
+    info.attitude.pitch_angle = Angle::Degrees(0.1f *i_pitch);
+
+    info.attitude.heading_available.Update(info.clock);
+    info.attitude.heading = Angle::Degrees(0.1f * i_yaw);
+    info.alive.Update(info.clock);
+    return true;
+  }
+  return true;
 }
 
 
@@ -88,6 +100,7 @@ ArduinoINSCreateOnPort(const DeviceConfig &config, Port &com_port)
 const struct DeviceRegister arduino_ins_driver = {
   _T("ArduinoINS"),
   _T("ArduinoINS"),
-  0,
+    DeviceRegister::NO_TIMEOUT |
+  DeviceRegister::RAW_GPS_DATA,
   ArduinoINSCreateOnPort,
 };
