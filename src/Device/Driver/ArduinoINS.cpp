@@ -49,11 +49,12 @@ ArduinoINSDevice::OnCalculatedUpdate(const MoreData &basic,
 {
   if (basic.ground_speed_available.IsValid()) {
     int16_t gs_10 = (int) 10 * basic.ground_speed;
+    //LogFormat("GS int to send: %i", gs_10);
     char buff[4];
     buff[0] = '$';
     buff[1] = 'V';
-    buff[2] = (gs_10 & 0x00ff);
-    buff[3] = (gs_10 & 0xff00) >> 8;
+    buff[2] = *((char*)&gs_10);
+    buff[3] = *((char*)&gs_10 + 1);
     port.Write(buff, 4);
     }
 }
@@ -64,7 +65,7 @@ ArduinoINSDevice::DataReceived(const void *data, size_t length,
 {
   const char* _line = (const char*)data;
   if(length != 8){
-    LogFormat("length: %i", (int)length);
+    //LogFormat("length: %i", (int)length);
     return true;
   }
   if(_line[0] == '$' && _line[1] == 'A'){
@@ -75,7 +76,7 @@ ArduinoINSDevice::DataReceived(const void *data, size_t length,
     *((char*)&i_pitch + 1) = _line[5];
     *((char*)&i_yaw) = _line[6];
     *((char*)&i_yaw + 1) = _line[7];
-    LogFormat("R: %i, P: %i, Y: %i", i_roll, i_pitch, i_yaw);
+    //LogFormat("R: %i, P: %i, Y: %i", i_roll, i_pitch, i_yaw);
     info.attitude.bank_angle_available.Update(info.clock);
     info.attitude.bank_angle = Angle::Degrees(0.1f * i_roll);
 
