@@ -30,16 +30,21 @@ Copyright_License {
 #include "Units/System.hpp"
 #include "LogFile.hpp"
 
+
 class ArduinoINSDevice : public AbstractDevice {
   Port &port;
 
 public:
-  ArduinoINSDevice(Port &_port):port(_port) {}
+  ArduinoINSDevice(Port &_port):port(_port) {};
 
   /* virtual methods from class Device */
   bool DataReceived(const void *data, size_t length, struct NMEAInfo &info) override;
   void OnCalculatedUpdate(const MoreData &basic,
                   const DerivedInfo &calculated) override;
+private:
+    float P_kal=1;
+    float x_kal_x=0, x_kal_z=0;
+   //Validity lastStep;
 };
 
 
@@ -57,6 +62,27 @@ ArduinoINSDevice::OnCalculatedUpdate(const MoreData &basic,
     buff[3] = *((char*)&gs_10 + 1);
     port.Write(buff, 4);
     }
+  if (basic.ground_speed_available.IsValid() && basic.gps_vario_available.IsValid()){
+    // TODO GPS update;
+    P_kal +=  1e-3*0.1;
+    float K_kal = P_kal / (P_kal + 1.0f); // 1.0f := noise of gps velocity
+    P_kal = (1 - K_kal) * P_kal;
+    x_kal_x += K_kal * (basic.ground_speed - x_kal_x);
+    x_kal_z += K_kal * (-basic.gps_vario - x_kal_z);
+    //lastStep.Update(basic.clock);
+    int16_t i_vx100 = (int) x_kal_x * 100;
+    int16_t i_vz100 = (int) x_kal_z * 100;
+    char buff[6];
+    buff[0] = '$';
+    buff[1] = 'G';
+    buff[2] = *((char*)&i_vx100);
+    buff[3] = *((char*)&i_vx100 + 1);
+    buff[4] = *((char*)&i_vz100);
+    buff[5] = *((char*)&i_vz100 + 1);
+    port.Write(buff, 6);
+
+
+  }
 }
 
 bool
@@ -64,18 +90,23 @@ ArduinoINSDevice::DataReceived(const void *data, size_t length,
                             struct NMEAInfo &info)
 {
   const char* _line = (const char*)data;
-  if(length != 8){
+  if(length != 12){
     //LogFormat("length: %i", (int)length);
     return true;
   }
   if(_line[0] == '$' && _line[1] == 'A'){
-    int16_t i_roll, i_pitch, i_yaw;
+    int16_t i_roll, i_pitch, i_yaw, i_vx, i_vz;
     *((char*)&i_roll) = _line[2];
     *((char*)&i_roll + 1) = _line[3];
     *((char*)&i_pitch) = _line[4];
     *((char*)&i_pitch + 1) = _line[5];
     *((char*)&i_yaw) = _line[6];
     *((char*)&i_yaw + 1) = _line[7];
+
+    *((char*)&i_vx) = _line[8];
+    *((char*)&i_vx + 1) = _line[9];
+    *((char*)&i_vz) = _line[10];
+    *((char*)&i_vz + 1) = _line[11];
     //LogFormat("R: %i, P: %i, Y: %i", i_roll, i_pitch, i_yaw);
     info.attitude.bank_angle_available.Update(info.clock);
     info.attitude.bank_angle = Angle::Degrees(0.1f * i_roll);
@@ -85,6 +116,13 @@ ArduinoINSDevice::DataReceived(const void *data, size_t length,
 
     info.attitude.heading_available.Update(info.clock);
     info.attitude.heading = Angle::Degrees(0.1f * i_yaw);
+    x_kal_x = 0.01f * i_vx;
+    x_kal_z = 0.01f * i_vz;
+    LogFormat("Vz: %f", x_kal_z);
+    //info.ProvideNoncompVario(-x_kal_z);
+    info.ProvideTotalEnergyVario(-x_kal_z);
+    //info.ground_speed(0.01 * i_vx);
+    //info.ground_speed_available.Update(info.clock)
     info.alive.Update(info.clock);
     return true;
   }
