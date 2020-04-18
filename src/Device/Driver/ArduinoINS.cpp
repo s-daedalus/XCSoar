@@ -29,7 +29,7 @@ Copyright_License {
 #include "NMEA/Derived.hpp"
 #include "Units/System.hpp"
 #include "LogFile.hpp"
-
+#include "Time/Cast.hxx"
 
 class ArduinoINSDevice : public AbstractDevice {
   Port &port;
@@ -42,8 +42,9 @@ public:
   void OnCalculatedUpdate(const MoreData &basic,
                   const DerivedInfo &calculated) override;
 private:
-    float P_kal=1;
-    float x_kal_x=0, x_kal_z=0;
+    float x_kal_x=0,x_kal_y=0, x_kal_z=0;
+    double last_altitude;
+    Validity last_altitude_validity;
    //Validity lastStep;
 };
 
@@ -52,8 +53,8 @@ void
 ArduinoINSDevice::OnCalculatedUpdate(const MoreData &basic, 
     const DerivedInfo &calculated)
 {
-  if (basic.ground_speed_available.IsValid()) {
-    int16_t gs_10 = (int) 10 * basic.ground_speed;
+  if (basic.airspeed_available.IsValid()) {
+    int16_t gs_10 = (int) (10 * basic.true_airspeed);
     //LogFormat("GS int to send: %i", gs_10);
     char buff[4];
     buff[0] = '$';
@@ -62,27 +63,71 @@ ArduinoINSDevice::OnCalculatedUpdate(const MoreData &basic,
     buff[3] = *((char*)&gs_10 + 1);
     port.Write(buff, 4);
     }
-  if (basic.ground_speed_available.IsValid() && basic.gps_vario_available.IsValid()){
-    // TODO GPS update;
-    P_kal +=  1e-3*0.1;
-    float K_kal = P_kal / (P_kal + 1.0f); // 1.0f := noise of gps velocity
-    P_kal = (1 - K_kal) * P_kal;
-    x_kal_x += K_kal * (basic.ground_speed - x_kal_x);
-    x_kal_z += K_kal * (-basic.gps_vario - x_kal_z);
-    //lastStep.Update(basic.clock);
-    int16_t i_vx100 = (int) x_kal_x * 100;
-    int16_t i_vz100 = (int) x_kal_z * 100;
-    char buff[6];
-    buff[0] = '$';
-    buff[1] = 'G';
-    buff[2] = *((char*)&i_vx100);
-    buff[3] = *((char*)&i_vx100 + 1);
-    buff[4] = *((char*)&i_vz100);
-    buff[5] = *((char*)&i_vz100 + 1);
-    port.Write(buff, 6);
 
 
+  // TODO GPS update.
+  float K_kal = 3e-2f;
+  float vx_ned = 0;
+  float vy_ned = 0;
+  float vz_ned = 0;
+  if (basic.ground_speed_available.IsValid()){
+    
+    vx_ned = basic.ground_speed * basic.track.fastcosine();
+    vy_ned = basic.ground_speed * basic.track.fastsine();
+    
+  }else{
+    return;
   }
+  
+  if(basic.pressure_altitude_available){
+    if(last_altitude_validity){
+
+      vz_ned = (last_altitude - basic.pressure_altitude) / 
+      ToFloatSeconds(basic.pressure_altitude_available.GetTimeDifference(last_altitude_validity));
+    }
+
+    last_altitude = basic.pressure_altitude;
+    last_altitude_validity = basic.pressure_altitude_available;
+
+  }else if(basic.baro_altitude_available){
+    if(last_altitude_validity){
+      vz_ned = (last_altitude - basic.baro_altitude) / 
+      ToFloatSeconds(basic.baro_altitude_available.GetTimeDifference(last_altitude_validity));
+    }
+    
+    last_altitude = basic.baro_altitude;
+    last_altitude_validity = basic.baro_altitude_available;
+    
+  }else if(basic.gps_altitude_available){
+    if(last_altitude_validity){
+      vz_ned = (last_altitude - basic.gps_altitude) / 
+      ToFloatSeconds(basic.gps_altitude_available.GetTimeDifference(last_altitude_validity));
+    }
+    last_altitude = basic.gps_altitude;
+    last_altitude_validity = basic.gps_altitude_available;
+    
+  }else{
+    return;
+  }
+  x_kal_x += K_kal * (vx_ned - x_kal_x);
+  x_kal_y += K_kal * (vy_ned - x_kal_y);
+  x_kal_z += K_kal * (vz_ned - x_kal_z);
+  //lastStep.Update(basic.clock);
+  // todo: transmit airspeed and not groundspeed
+  int16_t i_vx100 = (x_kal_x * 100);
+  int16_t i_vy100 = (x_kal_y * 100);
+  int16_t i_vz100 = (x_kal_z * 100);
+  char buff[8];
+  buff[0] = '$';
+  buff[1] = 'G';
+  // todo: rotate from body to NED frame before transmitting
+  buff[2] = *((char*)&i_vx100);
+  buff[3] = *((char*)&i_vx100 + 1);
+  buff[4] = *((char*)&i_vy100);
+  buff[5] = *((char*)&i_vy100 + 1);
+  buff[6] = *((char*)&i_vz100);
+  buff[7] = *((char*)&i_vz100 + 1);
+  port.Write(buff, 8);
 }
 
 bool
@@ -90,12 +135,11 @@ ArduinoINSDevice::DataReceived(const void *data, size_t length,
                             struct NMEAInfo &info)
 {
   const char* _line = (const char*)data;
-  if(length != 12){
-    //LogFormat("length: %i", (int)length);
+  if(length != 14){
     return true;
   }
   if(_line[0] == '$' && _line[1] == 'A'){
-    int16_t i_roll, i_pitch, i_yaw, i_vx, i_vz;
+    int16_t i_roll, i_pitch, i_yaw, i_vx, i_vy, i_vz;
     *((char*)&i_roll) = _line[2];
     *((char*)&i_roll + 1) = _line[3];
     *((char*)&i_pitch) = _line[4];
@@ -105,9 +149,11 @@ ArduinoINSDevice::DataReceived(const void *data, size_t length,
 
     *((char*)&i_vx) = _line[8];
     *((char*)&i_vx + 1) = _line[9];
-    *((char*)&i_vz) = _line[10];
-    *((char*)&i_vz + 1) = _line[11];
-    //LogFormat("R: %i, P: %i, Y: %i", i_roll, i_pitch, i_yaw);
+    *((char*)&i_vy) = _line[10];
+    *((char*)&i_vy + 1) = _line[11];
+    *((char*)&i_vz) = _line[12];
+    *((char*)&i_vz + 1) = _line[13];
+
     info.attitude.bank_angle_available.Update(info.clock);
     info.attitude.bank_angle = Angle::Degrees(0.1f * i_roll);
 
@@ -116,13 +162,14 @@ ArduinoINSDevice::DataReceived(const void *data, size_t length,
 
     info.attitude.heading_available.Update(info.clock);
     info.attitude.heading = Angle::Degrees(0.1f * i_yaw);
+    
     x_kal_x = 0.01f * i_vx;
+    x_kal_y = 0.01f * i_vy;
     x_kal_z = 0.01f * i_vz;
-    LogFormat("Vz: %f", x_kal_z);
-    //info.ProvideNoncompVario(-x_kal_z);
-    info.ProvideTotalEnergyVario(-x_kal_z);
-    //info.ground_speed(0.01 * i_vx);
-    //info.ground_speed_available.Update(info.clock)
+
+    info.ProvideNoncompVario(-x_kal_z);
+    info.ground_speed = sqrtf(x_kal_x * x_kal_x + x_kal_y * x_kal_y);
+    info.ground_speed_available.Update(info.clock);
     info.alive.Update(info.clock);
     return true;
   }
