@@ -24,9 +24,18 @@ Copyright_License {
 #include "ToneSynthesiserCont.hpp"
 #include "Math/FastTrig.hpp"
 #include "Util/Macros.hpp"
-#include "Math/LowPassFilter.hpp"
 
 #include <cassert>
+// TODO: Maybe make low pass filter for frequency more flexible
+#define LPF_T_1_TIME (0.1f)
+
+ToneSynthesiserCont::ToneSynthesiserCont(unsigned _sample_rate) :
+  ToneSynthesiser(_sample_rate),
+  lpf_param(1 / (LPF_T_1_TIME * _sample_rate + 1)),
+  freq(0), freq_tgt(0)
+  {
+
+  }
 
 void
 ToneSynthesiserCont::SetTone(unsigned tone_hz)
@@ -40,21 +49,9 @@ ToneSynthesiserCont::Synthesise(int16_t *buffer, size_t n)
   assert(angle < ARRAY_SIZE(ISINETABLE));
 
   for (int16_t *end = buffer + n; buffer != end; ++buffer) {
-    freq = LowPassFilter(freq, freq_tgt, 0.0003);
-    increment = ARRAY_SIZE(ISINETABLE) * (int)freq / sample_rate;                       
+    freq += lpf_param * (freq_tgt - freq);
+    increment = ARRAY_SIZE(ISINETABLE) * (int)freq / this->sample_rate;                       
     *buffer = ISINETABLE[angle] * (32767 / 1024) * (int)volume / 100;
     angle = (angle + increment) & (ARRAY_SIZE(ISINETABLE) - 1);
   }
-}
-
-unsigned
-ToneSynthesiserCont::ToZero() const
-{
-  assert(angle < ARRAY_SIZE(ISINETABLE));
-
-  if (angle < increment)
-    /* close enough */
-    return 0;
-
-  return (ARRAY_SIZE(ISINETABLE) - angle) / increment;
 }

@@ -21,34 +21,20 @@ Copyright_License {
 }
 */
 
-#ifndef XCSOAR_AUDIO_TONE_SYNTHESISER_HPP
-#define XCSOAR_AUDIO_TONE_SYNTHESISER_HPP
+#ifndef XCSOAR_AUDIO_TONE_SYNTHESISER_CONT_HPP
+#define XCSOAR_AUDIO_TONE_SYNTHESISER_CONT_HPP
 
-#include "PCMSynthesiser.hpp"
+#include "ToneSynthesiser.hpp"
 #include "Util/Compiler.h"
 
 /**
- * This class generates tones with a sine wave.
+ * This class generates sine wave tones with smooth pitch transitions.
  */
-class ToneSynthesiserCont : public PCMSynthesiser {
+class ToneSynthesiserCont : public ToneSynthesiser {
   unsigned volume = 100, angle = 0, increment = 0;
 
 public:
-  explicit ToneSynthesiserCont(unsigned _sample_rate) : sample_rate(_sample_rate),freq(0), freq_tgt(0){
-  }
-
-  unsigned GetSampleRate() const {
-    return sample_rate;
-  }
-
-  /**
-   * Set the (software) volume of the generated tone.
-   *
-   * @param _volume the new volume level, 0 indicating muted, 100
-   * means full volume
-   */
-  void SetVolume(unsigned _volume) {
-    volume = _volume;
+  explicit ToneSynthesiserCont(unsigned _sample_rate) :ToneSynthesiser(_sample_rate),lpf_param(1 / (0.1f * _sample_rate + 1)), freq(0), freq_tgt(0){
   }
 
   void SetTone(unsigned tone_hz);
@@ -56,24 +42,10 @@ public:
   /* methods from class PCMSynthesiser */
   virtual void Synthesise(int16_t *buffer, size_t n);
 
-protected:
-  const unsigned sample_rate;
-
-  /**
-   * Returns the number of samples until the sample value gets close
-   * to zero.
-   */
-  gcc_pure
-  unsigned ToZero() const;
-
-  /**
-   * Start a new period.
-   */
-  void Restart() {
-    angle = 0;
-  }
 private:
-float freq,freq_tgt;
+// Low pass filter transposed time constant := 1 / (T_1 * f_sample + 1)
+const float lpf_param;
+float freq, freq_tgt; 
 };
 
 #endif
