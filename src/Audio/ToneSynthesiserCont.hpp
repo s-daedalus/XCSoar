@@ -34,8 +34,7 @@ class ToneSynthesiserCont : public ToneSynthesiser {
   unsigned volume = 100, angle = 0, increment = 0;
 
 public:
-  explicit ToneSynthesiserCont(unsigned _sample_rate) :ToneSynthesiser(_sample_rate),lpf_param(1 / (0.1f * _sample_rate + 1)), freq(0), freq_tgt(0){
-  }
+  explicit ToneSynthesiserCont(unsigned _sample_rate);
 
   void SetTone(unsigned tone_hz);
 
