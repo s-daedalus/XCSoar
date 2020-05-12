@@ -24,14 +24,14 @@ Copyright_License {
 #ifndef XCSOAR_AUDIO_VARIO_SYNTHESISER_HPP
 #define XCSOAR_AUDIO_VARIO_SYNTHESISER_HPP
 
-#include "ToneSynthesiser.hpp"
+#include "ToneSynthesiserCont.hpp"
 #include "Thread/Mutex.hxx"
 #include "Util/Compiler.h"
 
 /**
  * This class generates vario sound.
  */
-class VarioSynthesiser final : public ToneSynthesiser {
+class VarioSynthesiser final : public ToneSynthesiserCont {
   /**
    * This mutex protects all atttributes below.  It is locked
    * automatically by all public methods.
@@ -91,7 +91,7 @@ class VarioSynthesiser final : public ToneSynthesiser {
 
 public:
   explicit VarioSynthesiser(unsigned sample_rate)
-    :ToneSynthesiser(sample_rate),
+    :ToneSynthesiserCont(sample_rate),
      audible_count(0), silence_count(1),
      audible_remaining(0), silence_remaining(0),
      dead_band_enabled(false),

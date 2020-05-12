@@ -117,6 +117,12 @@ UpdateInfoBoxBattery(InfoBoxData &data)
 void
 UpdateInfoBoxExperimental1(InfoBoxData &data)
 {
+  if(CommonInterface::Basic().gps_vario_available){
+    //data.SetValue(CommonInterface::Basic().gps_vario);
+    data.SetCommentFromSpeed(CommonInterface::Basic().gps_vario);
+    data.SetValueUnit(Unit::METER_PER_SECOND);
+    return;
+  }
   // Set Value
   data.SetInvalid();
 }

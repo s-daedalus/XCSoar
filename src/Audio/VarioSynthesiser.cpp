@@ -118,7 +118,7 @@ VarioSynthesiser::Synthesise(int16_t *buffer, size_t n)
 
   if (silence_count == 0) {
     /* magic value for "continuous tone" */
-    ToneSynthesiser::Synthesise(buffer, n);
+    ToneSynthesiserCont::Synthesise(buffer, n);
     return;
   }
 
@@ -129,7 +129,7 @@ VarioSynthesiser::Synthesise(int16_t *buffer, size_t n)
       unsigned o = silence_count > 0
         ? std::min(n, audible_remaining)
         : n;
-      ToneSynthesiser::Synthesise(buffer, o);
+      ToneSynthesiserCont::Synthesise(buffer, o);
       buffer += o;
       n -= o;
       audible_remaining -= o;

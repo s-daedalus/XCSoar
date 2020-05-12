@@ -1,3 +1,9 @@
 {
-    "C_Cpp.default.includePath": ["/home/mattis/XCSoar-fork/src", "/home/mattis/XCSoar-fork/lib/glm"]
+    "C_Cpp.default.includePath": [
+        "/home/mattis/XCSoar-fork/src",
+        "/home/mattis/XCSoar-fork/lib/glm"
+    ],
+    "files.associations": {
+        "chrono": "cpp"
+    }
 }
